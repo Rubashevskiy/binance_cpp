@@ -31,6 +31,7 @@ class Binance {
 private:
   Auth auth_key;
   BinanceError error;
+  Order js_to_order(json js_order);
   void sign(headerparams& h_params, urlparams& u_params);
   bool error_check(RequestResult &r_result);
 public:
@@ -44,7 +45,7 @@ public:
   /// @brief Время на сервере Binance минус cистемное время
   /// @param ms - diff в мс.
   /// @return - Ошибка/Без ошибок
-  bool ping_time(int &ms);
+  bool diff_time(int &ms);
   /// @brief timestamp c сервера Binance
   /// @param dttm_ms - Дата и время(timestamp ms)
   /// @return - Ошибка/Без ошибок

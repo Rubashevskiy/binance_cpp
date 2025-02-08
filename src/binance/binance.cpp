@@ -9,7 +9,7 @@ bool Binance::ping() {
   return error_check(r_result);
 }
 
-bool Binance::ping_time(int &ms) {
+bool Binance::diff_time(int &ms) {
   Request request{host, port};
   uint64_t srv_dttm_ms;
   uint64_t current_time = current_ms_epoch();
@@ -85,13 +85,7 @@ bool Binance::create_order(Order &order) {
   RequestResult r_result = request.request(RequestType::POST, "/api/v3/order", header, params);
   if (error_check(r_result)) {
     json js_order = json::parse(r_result.body);
-    order.symbol = js_order.value("symbol", std::string{});
-    order.orderId = js_order.value("orderId", uint64_t{});
-    order.price = dec::decimal<8>(js_order.value("price", std::string{}));
-    order.origQty = dec::decimal<8>(js_order.value("origQty", std::string{}));
-    order.side = str_to_side(js_order.value("side", std::string{}));
-    order.status = str_to_order_status(js_order.value("status", std::string{}));
-    order.time = js_order.value("transactTime", uint64_t{});
+    order = js_to_order(js_order);
     return true;
   }
   return false;
@@ -107,14 +101,7 @@ bool Binance::open_orders(std::string symbol, std::vector<Order> &orders) {
   if (error_check(r_result)) {
     json js = json::parse(r_result.body);
     for(auto &js_order : js) {
-      Order order;
-      order.symbol = js_order.value("symbol", std::string{});
-      order.orderId = js_order.value("orderId", uint64_t{});
-      order.price = dec::decimal<8>(js_order.value("price", std::string{}));
-      order.origQty = dec::decimal<8>(js_order.value("origQty", std::string{}));
-      order.side = str_to_side(js_order.value("side", std::string{}));
-      order.status = str_to_order_status(js_order.value("status", std::string{}));
-      order.time = js_order.value("time", uint64_t{});
+      Order order = js_to_order(js_order);
       orders.push_back(order);
     }
     return true;
@@ -132,13 +119,7 @@ bool Binance::order_info(std::string symbol, uint64_t order_id, Order &order) {
   RequestResult r_result = request.request(RequestType::GET, "/api/v3/order", header, params);
   if (error_check(r_result)) {
     json js_order = json::parse(r_result.body);
-    order.symbol = js_order.value("symbol", std::string{});
-    order.orderId = js_order.value("orderId", uint64_t{});
-    order.price = dec::decimal<8>(js_order.value("price", std::string{}));
-    order.origQty = dec::decimal<8>(js_order.value("origQty", std::string{}));
-    order.side = str_to_side(js_order.value("side", std::string{}));
-    order.status = str_to_order_status(js_order.value("status", std::string{}));
-    order.time = js_order.value("time", uint64_t{});
+    order = js_to_order(js_order);
     if (OrderStatus::NEW != order.status) {
       Commission cms{};
       if (order_commission(symbol, order_id, order.commission)) {
@@ -183,13 +164,7 @@ bool Binance::cancel_order(std::string symbol, uint64_t order_id, Order &order) 
   RequestResult r_result = request.request(RequestType::DELETE, "/api/v3/order", header, params);
   if (error_check(r_result)) {
     json js_order = json::parse(r_result.body);
-    order.symbol = js_order.value("symbol", std::string{});
-    order.orderId = js_order.value("orderId", uint64_t{});
-    order.price = dec::decimal<8>(js_order.value("price", std::string{}));
-    order.origQty = dec::decimal<8>(js_order.value("origQty", std::string{}));
-    order.side = str_to_side(js_order.value("side", std::string{}));
-    order.status = str_to_order_status(js_order.value("status", std::string{}));
-    order.time = js_order.value("transactTime", uint64_t{});
+    order = js_to_order(js_order);
     return true;
   }
   return false;
@@ -205,14 +180,7 @@ bool Binance::all_orders(std::string symbol, std::vector<Order> &orders) {
   if (error_check(r_result)) {
     json js = json::parse(r_result.body);
       for (auto &js_order : js) {
-        Order order;
-        order.symbol = js_order.value("symbol", std::string{});
-        order.orderId = js_order.value("orderId", uint64_t{});
-        order.price = dec::decimal<8>(js_order.value("price", std::string{}));
-        order.origQty = dec::decimal<8>(js_order.value("origQty", std::string{}));
-        order.side = str_to_side(js_order.value("side", std::string{}));
-        order.status = str_to_order_status(js_order.value("status", std::string{}));
-        order.time = js_order.value("time", uint64_t{});
+        Order order = js_to_order(js_order);
         orders.push_back(order);
       }
       return true;
@@ -220,12 +188,32 @@ bool Binance::all_orders(std::string symbol, std::vector<Order> &orders) {
   return false;
 }
 
+Order Binance::js_to_order(json js_order) {
+  Order order;
+  order.symbol = js_order.value("symbol", std::string{});
+  order.orderId = js_order.value("orderId", uint64_t{});
+  order.price = dec::decimal<8>(js_order.value("price", std::string{}));
+  order.origQty = dec::decimal<8>(js_order.value("origQty", std::string{}));
+  order.side = str_to_side(js_order.value("side", std::string{}));
+  order.status = str_to_order_status(js_order.value("status", std::string{}));
+  if (js_order.contains("time")) {
+    order.time = js_order.value("time", uint64_t{});
+  }
+  else if (js_order.contains("transactTime")) {
+    order.time = js_order.value("transactTime", uint64_t{});
+  }
+  else {
+    order.time = 0;
+  }
+  return order;
+}
 
-void Binance::sign(headerparams &h_params, urlparams &u_params) {
-  h_params.add("X-MBX-APIKEY", auth_key.api_key);
-  u_params.add("recvWindow", 5000);
-  u_params.add("timestamp", current_ms_epoch());
-  u_params.add("signature", hmac_sha256(auth_key.user_key.c_str(), u_params.url_params.c_str()));
+void Binance::sign(headerparams &h_params, urlparams &u_params)
+{
+    h_params.add("X-MBX-APIKEY", auth_key.api_key);
+    u_params.add("recvWindow", 5000);
+    u_params.add("timestamp", current_ms_epoch());
+    u_params.add("signature", hmac_sha256(auth_key.user_key.c_str(), u_params.url_params.c_str()));
 }
 
 bool Binance::error_check(RequestResult &r_result) {
