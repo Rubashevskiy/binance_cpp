@@ -1,0 +1,19 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "${workspaceFolder}//src/binance//",
+                "${workspaceFolder}//src/request//",
+                "${workspaceFolder}//src/utils//"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/g++-13",
+            "cStandard": "c23",
+            "cppStandard": "gnu++20",
+            "intelliSenseMode": "linux-gcc-x64"
+        }
+    ],
+    "version": 4
+}

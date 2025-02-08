@@ -1,0 +1,34 @@
+{
+    "tasks": [
+        {
+            "type": "cppbuild",
+            "label": "C/C++: g++ сборка активного файла",
+            "command": "/usr/bin/g++-13",
+            "args": [
+                "-fdiagnostics-color=always",
+                "-g",
+                "${workspaceRoot}//test/main.cpp",
+                "${workspaceRoot}//src/request/request.cpp",
+                "${workspaceRoot}//src/binance/binance.cpp",
+                "-std=c++23",
+                "-o",
+                "${workspaceRoot}//bin/binance_test.out",
+                "-lcurl",
+                "-lssl",
+                "-lcrypto"
+            ],
+            "options": {
+                "cwd": "${fileDirname}"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "detail": "Сборка..."
+        }
+    ],
+    "version": "2.0.0"
+}
