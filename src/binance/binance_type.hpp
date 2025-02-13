@@ -6,17 +6,36 @@
 
 #include "../utils/decimal.hpp"
 
-struct Auth{
-  std::string api_key{};
-  std::string user_key{};
-};
-
-enum class BinanceErrorType {
+enum class ExceptionType {
   None = 0,
   Transport = 1,
   Server = 2,
   Binance = 3,
-  Logical = 4
+};
+
+struct BinanceException {
+ExceptionType e_type{ExceptionType::None};
+int e_code{0};
+std::string e_msg{};
+std::string e_type_str() {
+  std::map<ExceptionType, std::string> err_m {
+      {ExceptionType::None, std::string{"None"}},
+      {ExceptionType::Transport, std::string{"Transport"}},
+      {ExceptionType::Server, std::string{"Server"}},
+      {ExceptionType::Binance, std::string{"Binance"}}
+    };
+    if (err_m.find(e_type) != err_m.end()) {
+      return err_m[e_type];
+    }
+    else {
+      return std::string{"NONE"};
+    }
+}
+};
+
+struct Auth{
+  std::string api_key{};
+  std::string user_key{};
 };
 
 enum class Side {
@@ -30,12 +49,6 @@ enum class OrderStatus {
   NEW = 1,
   FILLED = 2,
   CANCELED = 3
-};
-
-struct BinanceError {
-  BinanceErrorType e_type = BinanceErrorType::None;
-  int e_code = 0;
-  std::string e_msg;
 };
 
 struct BalanceData {
@@ -70,6 +83,10 @@ struct Balance {
     }
     return result;
   }
+
+  void clear() {
+    this->balance.clear();
+  }
 };
 
 struct Commission {
@@ -88,7 +105,7 @@ struct Commission {
     }
   }
 
-  dec::decimal<8> get(std::string asset) {
+  dec::decimal<8> get(const std::string &asset) {
     if (this->commission.find(asset) != this->commission.end()) {
       return this->commission[asset];
     }
@@ -98,7 +115,7 @@ struct Commission {
   }
 
   std::vector<std::string> assets() {
-    std::vector<std::string> result;
+    std::vector<std::string> result{};
     for(auto const& asset: this->commission) {
       result.push_back(asset.first);
     }
@@ -111,28 +128,10 @@ struct Order {
   uint64_t orderId{0};
   dec::decimal<8> price{"0.00000000"};
   dec::decimal<8> origQty{"0.00000000"};
-  Commission commission{};
   Side side{Side::NONE};
   OrderStatus status{OrderStatus::NONE};
   uint64_t time{0};
 };
-
-
-static std::string binance_error_type_str(BinanceErrorType err_type) {
-  std::map<BinanceErrorType, std::string> err_m {
-    {BinanceErrorType::None, std::string{"None"}},
-    {BinanceErrorType::Transport, std::string{"Transport"}},
-    {BinanceErrorType::Server, std::string{"Server"}},
-    {BinanceErrorType::Binance, std::string{"Binance"}},
-    {BinanceErrorType::Logical, std::string{"Logical"}}
-  };
-  if (err_m.find(err_type) != err_m.end()) {
-    return err_m[err_type];
-  }
-  else {
-    return std::string{"NONE"};
-  }
-}
 
 static std::string side_to_str(Side side) {
   std::map<Side, std::string> side_m {

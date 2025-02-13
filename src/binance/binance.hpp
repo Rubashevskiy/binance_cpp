@@ -4,7 +4,7 @@
 #include <iostream>
 #include <map>
 
-#include "binance_type.hpp"
+#include "./binance_type.hpp"
 #include "../request/request.hpp"
 #include "../utils/utils.hpp"
 #include "../utils/json.hpp"
@@ -30,74 +30,83 @@ public:
 class Binance {
 private:
   Auth auth_key;
-  BinanceError error;
-  Order js_to_order(json js_order);
+  Order json_to_order(const json &js_order);
   void sign(headerparams& h_params, urlparams& u_params);
-  bool error_check(RequestResult &r_result);
+  void check_error(const RequestResult &r_result);
 public:
   /// @brief Конструктор класса Binance
-  /// @param api_key - API KEY
-  /// @param user_key - USER KEY
+  /// @param key - Ключи доступа
   Binance(Auth key);
+
   /// @brief Пинг сервера Binance
-  /// @return - Ошибка/Без ошибок
+  /// @return - True успех
+  /// @exception BinanceException
   bool ping();
+
   /// @brief Время на сервере Binance минус cистемное время
-  /// @param ms - diff в мс.
-  /// @return - Ошибка/Без ошибок
-  bool diff_time(int &ms);
+  /// @return - diff(ms) в мс.
+  /// @exception BinanceException
+  int diff_time();
+
   /// @brief timestamp c сервера Binance
   /// @param dttm_ms - Дата и время(timestamp ms)
-  /// @return - Ошибка/Без ошибок
-  bool timestamp_ms(uint64_t &dttm_ms);
+  /// @exception BinanceException
+  uint64_t timestamp_ms();
+
   /// @brief Дата и время в текстовом формате
-  /// @return - Ошибка/Без ошибок
-  bool data_time(std::string &dttm);
+  /// @return - Дата и время
+  /// @exception BinanceException
+  std::string data_time();
+
   /// @brief Возврат цены за пару
   /// @param symbol Торговая пара
-  /// @param price Прайс
-  /// @return - Ошибка/Без ошибок
-  bool symbol_price(std::string symbol, dec::decimal<8> &price);
+  /// @return - Прайс
+  /// @exception BinanceException
+  dec::decimal<8> symbol_price(const std::string &symbol);
                                 /* Запросы с авторизацие */
   /// @brief Получение баланса пользователя
-  /// @param balance Баланс пользователя
-  /// @return - Ошибка/Без ошибок
-  bool balance(Balance &balance);
+  /// @return - Баланс
+  /// @exception BinanceException
+  Balance balance();
+
   /// @brief Создать лимитный ордер
-  /// @param order Данные ордера(IN/OUT)
-  /// @return - Ошибка/Без ошибок
-  bool create_order(Order &order);
+  /// @param order Ордер для создания
+  /// @return - Новый ордер
+  /// @exception BinanceException
+  Order create_order(Order &order);
+
   /// @brief Открытые ордера
   /// @param symbol Торговая пара
-  /// @param orders Вектор ордеров(контейнер)
-  /// @return - Ошибка/Без ошибок
-  bool open_orders(std::string symbol, std::vector<Order> &orders);
-  /// @brief Информация по ордеру
-  /// @param symbol Торговая пара
-  /// @param order_id Id ордера
-  /// @param order Ордер(контейнер)
-  /// @return - Ошибка/Без ошибок
-  bool order_info(std::string symbol, uint64_t order_id, Order &order);
-  /// @brief Коммисия за ордер
-  /// @param symbol Торговая пара
-  /// @param order_id Id ордера
-  /// @param cms Коммисия(контейнер)
-  /// @return - Ошибка/Без ошибок
-  bool order_commission(std::string symbol, uint64_t order_id, Commission &cms);
+  /// @return - Вектор ордеров
+  /// @exception BinanceException
+  std::vector<Order> open_orders(const std::string &symbol);
+
   /// @brief Отмена лимитного ордера
   /// @param symbol Торговая пара
   /// @param order_id Id ордера
-  /// @param order Ордер(контейнер)
-  /// @return - Ошибка/Без ошибок
-  bool cancel_order(std::string symbol, uint64_t order_id, Order &order);
+  /// @return - Отмененный Ордер
+  /// @exception BinanceException
+  Order cancel_order(const std::string &symbol, const uint64_t &order_id);
+
+  /// @brief Информация по ордеру
+  /// @param symbol Торговая пара
+  /// @param order_id Id ордера
+  /// @return - Ордер
+  /// @exception BinanceException
+  Order order_info(const std::string &symbol, const uint64_t &order_id);
+
+  /// @brief Коммисия за ордер
+  /// @param symbol Торговая пара
+  /// @param order_id Id ордера
+  /// @return - Коммисия(контейнер)
+  /// @exception BinanceException
+  Commission order_commission(const std::string &symbol, const uint64_t &order_id);
+
   /// @brief Все ордера
   /// @param symbol Торговая пара
-  /// @param orders Вектор ордеров
-  /// @return - Ошибка/Без ошибок
-  bool all_orders(std::string symbol, std::vector<Order> &orders);
-  /// @brief Возврат последней ошибки
-  /// @return - Ошибка в формате BinanceError
-  BinanceError last_error();
+  /// @return - Вектор ордеров
+  /// @exception BinanceException
+  std::vector<Order> all_orders(const std::string &symbol);
   /// @brief Деструктор класса Binance
   ~Binance();
 };

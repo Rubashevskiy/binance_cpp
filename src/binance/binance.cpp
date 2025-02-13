@@ -6,71 +6,56 @@ Binance::Binance(Auth key) : auth_key(key){}
 bool Binance::ping() {
   Request request{host, port};
   RequestResult r_result = request.request(RequestType::GET,"/api/v3/ping", BaseHeader(), urlparams());
-  return error_check(r_result);
+  check_error(r_result);
+  return true;
 }
 
-bool Binance::diff_time(int &ms) {
-  Request request{host, port};
-  uint64_t srv_dttm_ms;
-  uint64_t current_time = current_ms_epoch();
-  if (timestamp_ms(srv_dttm_ms)) {
-    ms = srv_dttm_ms - current_time;
-    return true;
-  }
-  return false;
+int Binance::diff_time() {
+  uint64_t current_time{current_ms_epoch()};
+  uint64_t server_timestamp{timestamp_ms()};
+  return server_timestamp - current_time;
 }
 
-bool Binance::timestamp_ms(uint64_t &timestamp) {
+uint64_t Binance::timestamp_ms() {
   Request request{host, port};
   RequestResult r_result = request.request(RequestType::GET, "/api/v3/time", BaseHeader(), urlparams());
-  if (error_check(r_result)) {
-    json js = json::parse(r_result.body);
-    timestamp = js.value("serverTime", std::uint64_t(0));
-    return true;
-  }
-  return false;
+  check_error(r_result);
+  json js = json::parse(r_result.body);
+  return js.value("serverTime", std::uint64_t(0));
 }
 
-bool Binance::data_time(std::string &dttm) {
-  uint64_t srv_dttm_ms;
-  if (timestamp_ms(srv_dttm_ms)) {
-    dttm = since_epoch_dttm(srv_dttm_ms, dttm_format);
-    return true;
-  }
-  return false;
+std::string Binance::data_time() {
+  std::string dttm = since_epoch_dttm(timestamp_ms(), dttm_format);
+  return dttm;
 }
 
-bool Binance::symbol_price(std::string symbol, dec::decimal<8> &price) {
+dec::decimal<8> Binance::symbol_price(const std::string &symbol) {
   Request request{host, port};
   urlparams params;
   params.add("symbol", symbol);
   RequestResult r_result = request.request(RequestType::GET, "/api/v3/ticker/price", BaseHeader(), params);
-  if (error_check(r_result)) {
-    json js = json::parse(r_result.body);
-    price = dec::decimal<8>(js.value("price", std::string{}));
-    return true;
-  }
-  return false;
+  check_error(r_result);
+  json js = json::parse(r_result.body);
+  return dec::decimal<8>(js.value("price", std::string{}));
 }
 
-bool Binance::balance(Balance &balance) {
+Balance Binance::balance() {
   Request request{host, port};
-  BaseHeader header;
+  BaseHeader header{};
   urlparams params;
   params.add("omitZeroBalances", true);
   sign(header, params);
   RequestResult r_result = request.request(RequestType::GET, "/api/v3/account", header, params);
-  if (error_check(r_result)) {
-    json js = json::parse(r_result.body);
-    for(auto &array : js["balances"]) {
-      balance.set(array.value("asset", std::string{}), array.value("free", std::string{}), array.value("locked", std::string{}));
-    }
-    return true;
+  check_error(r_result);
+  json js = json::parse(r_result.body);
+  Balance balance{};
+  for(auto &array : js["balances"]) {
+    balance.set(array.value("asset", std::string{}), array.value("free", std::string{}), array.value("locked", std::string{}));
   }
-  return false;
+  return balance;
 }
 
-bool Binance::create_order(Order &order) {
+Order Binance::create_order(Order &order) {
   Request request{host, port};
   BaseHeader header;
   urlparams params;
@@ -83,78 +68,28 @@ bool Binance::create_order(Order &order) {
   params.add("newOrderRespType", std::string{"RESULT"});
   sign(header, params);
   RequestResult r_result = request.request(RequestType::POST, "/api/v3/order", header, params);
-  if (error_check(r_result)) {
-    json js_order = json::parse(r_result.body);
-    order = js_to_order(js_order);
-    return true;
-  }
-  return false;
+  check_error(r_result);
+  return json_to_order(json::parse(r_result.body));
 }
 
-bool Binance::open_orders(std::string symbol, std::vector<Order> &orders) {
+std::vector<Order> Binance::open_orders(const std::string &symbol) {
   Request request{host, port};
   BaseHeader header;
   urlparams params;
   params.add("symbol", "VETUSDT");
   sign(header, params);
   RequestResult r_result = request.request(RequestType::GET, "/api/v3/openOrders", header, params);
-  if (error_check(r_result)) {
-    json js = json::parse(r_result.body);
-    for(auto &js_order : js) {
-      Order order = js_to_order(js_order);
-      orders.push_back(order);
-    }
-    return true;
+  check_error(r_result);
+  std::vector<Order> orders{};
+  json js = json::parse(r_result.body);
+  for(auto &js_order : js) {
+    Order order = json_to_order(js_order);
+    orders.push_back(order);
   }
-  return false;
+  return orders;
 }
 
-bool Binance::order_info(std::string symbol, uint64_t order_id, Order &order) {
-  Request request{host, port};
-  BaseHeader header;
-  urlparams params;
-  params.add("symbol", symbol);
-  params.add("orderId", order_id);
-  sign(header, params);
-  RequestResult r_result = request.request(RequestType::GET, "/api/v3/order", header, params);
-  if (error_check(r_result)) {
-    json js_order = json::parse(r_result.body);
-    order = js_to_order(js_order);
-    if (OrderStatus::NEW != order.status) {
-      Commission cms{};
-      if (order_commission(symbol, order_id, order.commission)) {
-        return true;
-      }
-      else {
-        return false;
-      }
-    }
-    return true;
-  }
-  return false;
-}
-
-bool Binance::order_commission(std::string symbol, uint64_t order_id, Commission &cms) {
-  Request request{host, port};
-  BaseHeader header;
-  urlparams params;
-  params.add("symbol", symbol);
-  params.add("orderId", order_id);
-  sign(header, params);
-  RequestResult r_result = request.request(RequestType::GET, "/api/v3/myTrades", header, params);
-  if (error_check(r_result)) {
-    json js = json::parse(r_result.body);
-    for(auto &js_cms : js) {
-      if (js_cms.contains("commission") && (js_cms.contains("commissionAsset"))) {
-        cms.set(js_cms.value("commissionAsset", std::string{}), js_cms.value("commission", std::string{}));
-      }
-    }
-    return true;
-  }
-  return false;
-}
-
-bool Binance::cancel_order(std::string symbol, uint64_t order_id, Order &order) {
+Order Binance::cancel_order(const std::string &symbol, const uint64_t &order_id) {
   Request request{host, port};
   BaseHeader header;
   urlparams params;
@@ -162,33 +97,58 @@ bool Binance::cancel_order(std::string symbol, uint64_t order_id, Order &order) 
   params.add("orderId", order_id);
   sign(header, params);
   RequestResult r_result = request.request(RequestType::DELETE, "/api/v3/order", header, params);
-  if (error_check(r_result)) {
-    json js_order = json::parse(r_result.body);
-    order = js_to_order(js_order);
-    return true;
-  }
-  return false;
+  check_error(r_result);
+  return json_to_order(json::parse(r_result.body));
 }
 
-bool Binance::all_orders(std::string symbol, std::vector<Order> &orders) {
+Order Binance::order_info(const std::string &symbol, const uint64_t &order_id) {
+  Request request{host, port};
+  headerparams header;
+  urlparams params;
+  params.add("symbol", symbol);
+  params.add("orderId", order_id);
+  sign(header, params);
+  RequestResult r_result = request.request(RequestType::GET, "/api/v3/order", header, params);
+  check_error(r_result);
+  return json_to_order(json::parse(r_result.body));
+}
+
+Commission Binance::order_commission(const std::string &symbol, const uint64_t &order_id) {
+  Request request{host, port};
+  headerparams header;
+  urlparams params;
+  params.add("symbol", symbol);
+  params.add("orderId", order_id);
+  sign(header, params);
+  RequestResult r_result = request.request(RequestType::GET, "/api/v3/myTrades", header, params);
+  check_error(r_result);
+  json js = json::parse(r_result.body);
+  Commission cms{};
+  for (auto &js_cms : js) {
+    if (js_cms.contains("commission") && (js_cms.contains("commissionAsset"))) {
+      cms.set(js_cms.value("commissionAsset", std::string{}), js_cms.value("commission", std::string{}));
+    }
+  }
+  return cms;
+}
+
+std::vector<Order> Binance::all_orders(const std::string &symbol) {
   Request request{host, port};
   headerparams header;
   urlparams params;
   params.add("symbol", symbol);
   sign(header, params);
   RequestResult r_result = request.request(RequestType::GET, "/api/v3/allOrders", header, params);
-  if (error_check(r_result)) {
-    json js = json::parse(r_result.body);
-      for (auto &js_order : js) {
-        Order order = js_to_order(js_order);
-        orders.push_back(order);
-      }
-      return true;
+  check_error(r_result);
+  json js = json::parse(r_result.body);
+  std::vector<Order> orders{};
+  for (auto &js_order : js) {
+    orders.push_back(json_to_order(js_order));
   }
-  return false;
+  return orders;
 }
 
-Order Binance::js_to_order(json js_order) {
+Order Binance::json_to_order(const json &js_order) {
   Order order;
   order.symbol = js_order.value("symbol", std::string{});
   order.orderId = js_order.value("orderId", uint64_t{});
@@ -208,41 +168,31 @@ Order Binance::js_to_order(json js_order) {
   return order;
 }
 
-void Binance::sign(headerparams &h_params, urlparams &u_params)
-{
-    h_params.add("X-MBX-APIKEY", auth_key.api_key);
-    u_params.add("recvWindow", 5000);
-    u_params.add("timestamp", current_ms_epoch());
-    u_params.add("signature", hmac_sha256(auth_key.user_key.c_str(), u_params.url_params.c_str()));
+void Binance::sign(headerparams &h_params, urlparams &u_params) {
+  h_params.add("X-MBX-APIKEY", auth_key.api_key);
+  u_params.add("recvWindow", 5000);
+  u_params.add("timestamp", current_ms_epoch());
+  u_params.add("signature", hmac_sha256(auth_key.user_key.c_str(), u_params.url_params.c_str()));
 }
 
-bool Binance::error_check(RequestResult &r_result) {
+void Binance::check_error(const RequestResult &r_result) {
   if (0 != r_result.transport.code) {
-    error = BinanceError{BinanceErrorType::Transport, r_result.transport.code, r_result.transport.msg};
-    return false;
+    throw BinanceException{ExceptionType::Transport, r_result.transport.code, r_result.transport.msg};
   }
   else if (200 != r_result.header.code) {
     try {
       json js = json::parse(r_result.body);
       if (js.contains("code") && (js.contains("msg"))) {
-        error = BinanceError{BinanceErrorType::Binance, js["code"], js["msg"]};
-        return false;
+        throw BinanceException{ExceptionType::Binance, js["code"], js["msg"]};
       }
       else {
-        error = BinanceError{BinanceErrorType::Server, r_result.transport.code, r_result.transport.msg};
-        return false;
+        throw BinanceException{ExceptionType::Server, r_result.header.code, r_result.header.msg};
       }
     }
     catch (json::parse_error& ex) {
-      error = BinanceError{BinanceErrorType::Transport, r_result.transport.code, r_result.transport.msg};
-      return false;
+      throw BinanceException{ExceptionType::Transport, r_result.header.code, r_result.header.msg};
     }
   }
-  return true;
-}
-
-BinanceError Binance::last_error() {
-  return error;
 }
 
 Binance::~Binance() {}
